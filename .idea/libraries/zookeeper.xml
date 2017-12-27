@@ -1,0 +1,14 @@
+<component name="libraryTable">
+  <library name="zookeeper">
+    <CLASSES>
+      <root url="file://E:/mondepends/zk" />
+      <root url="file://E:/mondepends/log4j" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.ideaLibSources/zookeeper-3.4.6-sources.jar!/" />
+    </SOURCES>
+    <jarDirectory url="file://E:/mondepends/log4j" recursive="false" />
+    <jarDirectory url="file://E:/mondepends/zk" recursive="false" />
+  </library>
+</component>
