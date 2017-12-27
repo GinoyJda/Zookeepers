@@ -118,7 +118,21 @@ public class MonServerBalance implements Runnable {
     }
 
 
-    public void rebalance(){
+    public void rebalance() throws KeeperException, InterruptedException {
+
+        List<String> server = zk.getChildren(SOC_PATH, childrenWatcher);
+        List<String> agent = zk.getChildren(SOC_PATH, childrenWatcher);
+        int server_counts = server.size();
+        int agent_counts = agent.size();
+        int left_agent = 0;
+
+        for(int i = 1;i <= server_counts;i++){
+            //第i台server 分得到台数
+            int temp = 0;
+            int j = temp % server_counts;
+            temp = agent_counts - j;
+
+        }
 
     }
 
