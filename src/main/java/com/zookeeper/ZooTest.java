@@ -23,6 +23,7 @@ public class ZooTest {
         System.out.println(zk.getChildren("/testRootPath",true));
         // 修改子目录节点数据
         zk.setData("/testRootPath/testChildPathOne","modifyChildDataOne".getBytes(),-1);
+        zk.setData("/testRootPath/testChildPathOne","yjd".getBytes(),-1);
         System.out.println("目录节点状态：["+zk.exists("/testRootPath",true)+"]");
         // 创建另外一个子目录节点
         zk.create("/testRootPath/testChildPathTwo", "testChildDataTwo".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE,CreateMode.PERSISTENT);
@@ -32,7 +33,7 @@ public class ZooTest {
         zk.delete("/testRootPath/testChildPathOne",-1);
         // 删除父目录节点
         zk.delete("/testRootPath",-1);
-        // 关闭连接
+//         关闭连接
         zk.close();
     }
 }

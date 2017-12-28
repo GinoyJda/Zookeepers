@@ -3,7 +3,10 @@ package com.zookeeper;
 import org.apache.zookeeper.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author yanjd
@@ -17,6 +20,8 @@ public class MonServerBalance implements Runnable {
     private List<String> historyServers;
     private ZooKeeper zk;
     protected boolean alive = true;
+    public  String noticePoint = "notice";
+
 
     public MonServerBalance() throws InterruptedException, IOException, KeeperException {
         init();
@@ -46,7 +51,7 @@ public class MonServerBalance implements Runnable {
                         //before
                         System.err.println("before historyServers: " + historyServers);
                         //算法入口
-
+                        rebalance();
                         //after
                         historyServers = children;
                         System.err.println("after historyServers: " + historyServers);
@@ -63,13 +68,11 @@ public class MonServerBalance implements Runnable {
             }
         };
 
-        zk = new ZooKeeper(ZK_PORT, 2000, connectionWatcher);
+        zk = new ZooKeeper(ZK_PORT, 10000, connectionWatcher);
         // Ensure the parent znode exists
         if(zk.exists(SOC_PATH, false) == null) {
             //Create the node.
-            zk.create(SOC_PATH,
-                    "ClusterMonitorRoot".getBytes(),
-                    ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            zk.create(SOC_PATH, "ClusterMonitorRoot".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         }
 
         // Set a watch on the parent znode
@@ -117,23 +120,74 @@ public class MonServerBalance implements Runnable {
         }
     }
 
-
+    //重新负载分配
     public void rebalance() throws KeeperException, InterruptedException {
 
-        List<String> server = zk.getChildren(SOC_PATH, childrenWatcher);
-        List<String> agent = zk.getChildren(SOC_PATH, childrenWatcher);
-        int server_counts = server.size();
-        int agent_counts = agent.size();
-        int left_agent = 0;
+        List<String> servers = zk.getChildren(SOC_PATH, childrenWatcher);
+        List<String> agents = new ArrayList<String>();
+        for(int i = 0;i<servers.size();i++){
+            List<String> agent = zk.getChildren(SOC_PATH+"/"+servers.get(i), childrenWatcher);
+            for(int j = 0;j<agent.size();j++){
+                agents.add(agent.get(j));
+            }
+        }
+        Map<String,List<String>> mapping  = allotOfAverage(servers,agents);
 
-        for(int i = 1;i <= server_counts;i++){
-            //第i台server 分得到台数
-            int temp = 0;
-            int j = temp % server_counts;
-            temp = agent_counts - j;
+        for(int i = 0;i<historyServers.size();i++){
+            if(mapping.containsKey(historyServers.get(i))){
+                List<String> newAgents = mapping.get(historyServers.get(i));
+                List<String> oldAgents = zk.getChildren(SOC_PATH+"/"+historyServers.get(i), childrenWatcher);
+                oldAgents.removeAll(newAgents);
+                for(int j = 0;j<oldAgents.size();j++){
+                    zk.delete(SOC_PATH+"/"+servers.get(i)+"/"+oldAgents.get(j)+"/"+noticePoint,-1);
+                    System.out.println(SOC_PATH+"/"+servers.get(i)+"/"+oldAgents.get(j)+"/"+noticePoint);
+                    String serverid = getServerId(mapping,oldAgents.get(j));
+                    zk.setData(SOC_PATH+"/"+servers.get(i)+"/"+oldAgents.get(j),serverid.getBytes(),-1);
 
+                }
+            }
         }
 
+    }
+
+    /*
+    * 获取serverId
+    */
+    public String getServerId(Map<String,List<String>> mapping,String agentId){
+        for (String key : mapping.keySet()) {
+            System.out.println("key= "+ key + " and value= " + mapping.get(key));
+            for(int i = 0;i<mapping.get(key).size();i++){
+                if(agentId.equals(mapping.get(key).get(i))){
+                    System.out.println("key: "+key);
+                    return key;
+                }
+            }
+
+        }
+        return null;
+    }
+    /*
+     * 分配算法
+    */
+    public Map<String,List<String>> allotOfAverage(List<String> users, List<String> tasks){
+        Map<String,List<String>> allot=new ConcurrentHashMap<String,List<String>>(); //保存分配的信息
+        if(users!=null&&users.size()>0&&tasks!=null&&tasks.size()>0){
+            for(int i=0;i<tasks.size();i++){
+                int j=i%users.size();
+                if(allot.containsKey(users.get(j))){
+                    List<String> list=allot.get(users.get(j));
+                    System.out.println("tasks.get(i) "+tasks.get(i));
+                    list.add(tasks.get(i));
+                    allot.put(users.get(j), list);
+                }else{
+                    List<String> list=new ArrayList<String>();
+                    System.out.println("tasks.get(i) "+tasks.get(i));
+                    list.add(tasks.get(i));
+                    allot.put(users.get(j), list);
+                }
+            }
+        }
+        return allot;
     }
 
     public static void main(String[] args)
